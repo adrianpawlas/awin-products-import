@@ -1,0 +1,63 @@
+name: Process Awin CSV
+
+on:
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: 'Batch size for processing'
+        required: false
+        default: '50'
+        type: number
+      max_products:
+        description: 'Maximum products to process (for testing)'
+        required: false
+        default: '1000'
+        type: number
+
+jobs:
+  process-csv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360  # 6 hours max
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Download CSV data
+      run: |
+        # You'll need to upload your CSV to GitHub releases or another location
+        # For now, this is a placeholder
+        echo "Please upload your CSV file to continue"
+        # wget -O datafeed_2525445.csv "YOUR_CSV_URL_HERE"
+
+    - name: Create .env file
+      run: |
+        echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" >> .env
+        echo "SUPABASE_KEY=${{ secrets.SUPABASE_KEY }}" >> .env
+
+    - name: Run processing script
+      env:
+        BATCH_SIZE: ${{ inputs.batch_size }}
+        MAX_PRODUCTS: ${{ inputs.max_products }}
+      run: |
+        python process_awin_csv.py
+
+    - name: Upload logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: processing-logs
+        path: |
+          awin_processor.log
+          *.log
+

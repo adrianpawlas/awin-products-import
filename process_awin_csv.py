@@ -37,7 +37,8 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 CSV_FILE = 'datafeed_2525445.csv'
-BATCH_SIZE = 50  # Number of products to process before inserting to Supabase
+BATCH_SIZE = int(os.getenv('BATCH_SIZE', '50'))  # Number of products to process before inserting to Supabase
+MAX_PRODUCTS = int(os.getenv('MAX_PRODUCTS', '0'))  # Limit for testing (0 = no limit)
 EMBEDDING_MODEL = 'google/siglip-base-patch16-384'
 MAX_RETRIES = 3
 RETRY_DELAY = 2  # seconds
@@ -329,28 +330,37 @@ def insert_to_supabase(products: List[Dict]) -> int:
 def main():
     """Main processing function."""
     logger.info("Starting Awin CSV processing")
-    
+    if MAX_PRODUCTS > 0:
+        logger.info(f"Limited to processing {MAX_PRODUCTS} products for testing")
+
     total_processed = 0
     total_inserted = 0
     batch = []
-    
+
     # Read CSV file
     try:
         with open(CSV_FILE, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             total_rows = sum(1 for _ in reader)
+            if MAX_PRODUCTS > 0:
+                total_rows = min(total_rows, MAX_PRODUCTS)
             logger.info(f"Found {total_rows} rows in CSV file")
-            
+
             # Reset file pointer
             f.seek(0)
             reader = csv.DictReader(f)
-            
+
             for row_num, row in enumerate(tqdm(reader, total=total_rows, desc="Reading CSV")):
+                # Stop if we've reached the max products limit
+                if MAX_PRODUCTS > 0 and row_num >= MAX_PRODUCTS:
+                    logger.info(f"Reached maximum products limit ({MAX_PRODUCTS})")
+                    break
+
                 try:
                     # Normalize product
                     product = normalize_product(row)
                     batch.append(product)
-                    
+
                     # Process batch when it reaches BATCH_SIZE
                     if len(batch) >= BATCH_SIZE:
                         logger.info(f"Processing batch of {len(batch)} products")

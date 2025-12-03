@@ -34,18 +34,55 @@ SUPABASE_KEY=your_supabase_anon_key
 
 ## Usage
 
+### Local Usage
+
 1. Place your Awin CSV file (`datafeed_2525445.csv`) in the project root directory.
 
-2. Run the script:
+2. Install dependencies and run:
 ```bash
+pip install -r requirements.txt
 python process_awin_csv.py
 ```
 
+### GitHub Actions Usage
+
+The repository includes a GitHub Actions workflow for cloud processing:
+
+1. **Upload your CSV file**: Upload `datafeed_2525445.csv` to GitHub releases or another accessible location.
+
+2. **Set up secrets**: Add your Supabase credentials to repository secrets:
+   - `SUPABASE_URL`: Your Supabase project URL
+   - `SUPABASE_KEY`: Your Supabase anon key
+
+3. **Run the workflow**:
+   - Go to Actions → "Process Awin CSV" → "Run workflow"
+   - Optionally adjust batch size and max products for testing
+
+**⚠️ GitHub Actions Limitations:**
+- Maximum 6 hours runtime
+- No GPU available (slower processing)
+- Limited to ~1000 products/hour without GPU
+- Full dataset (~47K products) would take ~2 days
+
+### Processing Details
+
 The script will:
-- Read all rows from the CSV
+- Read all rows from the CSV (or limited number for testing)
 - Process products in batches (default: 50 products per batch)
-- Download images and generate embeddings
+- Download images and generate embeddings using SigLIP
 - Insert data into your Supabase `products` table
+
+### Environment Variables for Testing
+
+```bash
+# Limit products for testing
+export MAX_PRODUCTS=100
+
+# Adjust batch size
+export BATCH_SIZE=10
+
+python process_awin_csv.py
+```
 
 ## Configuration
 
