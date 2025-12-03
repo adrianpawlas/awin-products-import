@@ -1,6 +1,7 @@
 name: Process Awin CSV
 
 on:
+  # Manual trigger
   workflow_dispatch:
     inputs:
       batch_size:
@@ -9,15 +10,24 @@ on:
         default: '50'
         type: number
       max_products:
-        description: 'Maximum products to process (for testing)'
+        description: 'Maximum products to process (0 = no limit)'
         required: false
-        default: '1000'
+        default: '0'
         type: number
+      force_full_run:
+        description: 'Force full dataset processing'
+        required: false
+        default: false
+        type: boolean
+
+  # Daily at midnight UTC
+  schedule:
+    - cron: '0 0 * * *'
 
 jobs:
   process-csv:
     runs-on: ubuntu-latest
-    timeout-minutes: 360  # 6 hours max
+    timeout-minutes: 720  # 12 hours max
 
     steps:
     - name: Checkout repository
@@ -33,12 +43,39 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
+    - name: Set processing parameters
+      id: params
+      run: |
+        if [ "${{ github.event_name }}" = "schedule" ]; then
+          echo "Scheduled run - processing full dataset"
+          echo "batch_size=50" >> $GITHUB_OUTPUT
+          echo "max_products=0" >> $GITHUB_OUTPUT
+        else
+          echo "Manual run with custom parameters"
+          echo "batch_size=${{ inputs.batch_size }}" >> $GITHUB_OUTPUT
+          echo "max_products=${{ inputs.max_products }}" >> $GITHUB_OUTPUT
+        fi
+
     - name: Download CSV data
       run: |
-        # You'll need to upload your CSV to GitHub releases or another location
-        # For now, this is a placeholder
-        echo "Please upload your CSV file to continue"
-        # wget -O datafeed_2525445.csv "YOUR_CSV_URL_HERE"
+        # Download from GitHub releases (latest release)
+        CSV_URL=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.assets[] | select(.name == "datafeed_2525445.csv") | .browser_download_url')
+
+        if [ -z "$CSV_URL" ]; then
+          echo "CSV file not found in releases. Please upload datafeed_2525445.csv to the latest release."
+          exit 1
+        fi
+
+        echo "Downloading CSV from: $CSV_URL"
+        wget -O datafeed_2525445.csv "$CSV_URL"
+
+        # Verify download
+        if [ ! -f "datafeed_2525445.csv" ]; then
+          echo "Failed to download CSV file"
+          exit 1
+        fi
+
+        echo "CSV downloaded successfully. Size: $(stat -f%z datafeed_2525445.csv) bytes"
 
     - name: Create .env file
       run: |
@@ -47,17 +84,42 @@ jobs:
 
     - name: Run processing script
       env:
-        BATCH_SIZE: ${{ inputs.batch_size }}
-        MAX_PRODUCTS: ${{ inputs.max_products }}
+        BATCH_SIZE: ${{ steps.params.outputs.batch_size }}
+        MAX_PRODUCTS: ${{ steps.params.outputs.max_products }}
       run: |
+        echo "Starting processing with batch_size=${{ steps.params.outputs.batch_size }}, max_products=${{ steps.params.outputs.max_products }}"
         python process_awin_csv.py
 
     - name: Upload logs
       if: always()
       uses: actions/upload-artifact@v3
       with:
-        name: processing-logs
+        name: processing-logs-${{ github.run_id }}
         path: |
           awin_processor.log
           *.log
+
+    - name: Notify completion
+      if: always()
+      run: |
+        STATUS="${{ job.status }}"
+        RUN_TYPE="${{ github.event_name }}"
+        TIMESTAMP=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
+
+        echo "Processing completed at $TIMESTAMP"
+        echo "Status: $STATUS"
+        echo "Run type: $RUN_TYPE"
+        echo "Run ID: ${{ github.run_id }}"
+
+        # You can add webhook notifications here
+        # Example for Slack/Discord webhook:
+        # curl -X POST -H 'Content-type: application/json' \
+        #   --data "{\"text\":\"Awin processing $STATUS at $TIMESTAMP (Run: $RUN_TYPE)\"}" \
+        #   ${{ secrets.NOTIFICATION_WEBHOOK_URL }}
+
+        if [ "$STATUS" = "success" ]; then
+          echo "✅ Processing completed successfully"
+        else
+          echo "❌ Processing failed - check logs for details"
+        fi
 

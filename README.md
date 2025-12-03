@@ -46,23 +46,54 @@ python process_awin_csv.py
 
 ### GitHub Actions Usage
 
-The repository includes a GitHub Actions workflow for cloud processing:
+The repository includes automated GitHub Actions workflows:
 
-1. **Upload your CSV file**: Upload `datafeed_2525445.csv` to GitHub releases or another accessible location.
+#### Automated Daily Processing
+- **Runs automatically every day at midnight UTC**
+- Processes the full dataset
+- 12-hour timeout limit
+- Saves logs as artifacts
 
-2. **Set up secrets**: Add your Supabase credentials to repository secrets:
-   - `SUPABASE_URL`: Your Supabase project URL
-   - `SUPABASE_KEY`: Your Supabase anon key
+#### Manual Processing
+- Trigger manually from GitHub Actions tab
+- Customize batch size and product limits
+- Useful for testing or partial updates
 
-3. **Run the workflow**:
+#### Setup Instructions
+
+1. **Upload CSV file to GitHub Releases**:
+   - Go to repository → Releases → Create new release
+   - Upload `datafeed_2525445.csv` as a release asset
+   - The workflow will automatically download the latest version
+
+2. **Set up repository secrets**:
+   - Go to Settings → Secrets and variables → Actions
+   - Add: `SUPABASE_URL` (your Supabase project URL)
+   - Add: `SUPABASE_KEY` (your Supabase anon key)
+   - Optional: `NOTIFICATION_WEBHOOK_URL` (for Slack/Discord notifications)
+
+3. **Manual runs**:
    - Go to Actions → "Process Awin CSV" → "Run workflow"
-   - Optionally adjust batch size and max products for testing
+   - Configure parameters:
+     - `batch_size`: Products per batch (default: 50)
+     - `max_products`: Limit products (0 = no limit, default: 0)
+     - `force_full_run`: Override limits (default: false)
+
+4. **Monitor progress**:
+   - Check Actions tab for running workflows
+   - Download logs from completed runs (artifacts)
+   - View real-time progress in workflow logs
 
 **⚠️ GitHub Actions Limitations:**
-- Maximum 6 hours runtime
-- No GPU available (slower processing)
-- Limited to ~1000 products/hour without GPU
-- Full dataset (~47K products) would take ~2 days
+- Maximum 12 hours runtime
+- No GPU available (slower processing: ~50-100 products/hour)
+- Full dataset (~47K products) would take ~10-20 hours
+- Free tier has monthly minute limits
+
+**💡 Best Practices:**
+- Use manual runs for testing with small `max_products` limits
+- Monitor the first automated run closely
+- Set up notifications to track completion status
 
 ### Processing Details
 
