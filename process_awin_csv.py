@@ -25,18 +25,19 @@ from tqdm import tqdm
 load_dotenv()
 
 # Configure logging
+log_filename = f"awin_processor_{os.path.splitext(os.path.basename(CSV_FILE))[0]}.log"
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('awin_processor.log'),
+        logging.FileHandler(log_filename),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
 
 # Configuration
-CSV_FILE = 'datafeed_2525445.csv'
+CSV_FILE = os.getenv('CSV_FILE', 'datafeed_2525445.csv')  # CSV file to process
 BATCH_SIZE = int(os.getenv('BATCH_SIZE', '50'))  # Number of products to process before inserting to Supabase
 MAX_PRODUCTS = int(os.getenv('MAX_PRODUCTS', '0'))  # Limit for testing (0 = no limit)
 EMBEDDING_MODEL = 'google/siglip-base-patch16-384'

@@ -58,45 +58,57 @@ jobs:
 
     - name: Download CSV data
       run: |
-        echo "Checking for CSV file in GitHub releases..."
+        echo "Checking for CSV files in GitHub releases..."
 
         # First check if there's a latest release
         RELEASE_DATA=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest)
 
         # Check if the API returned valid data
         if [ "$(echo "$RELEASE_DATA" | jq -r '.message // empty')" = "Not Found" ]; then
-          echo "❌ No releases found in repository. Please create a release and upload datafeed_2525445.csv"
+          echo "❌ No releases found in repository. Please create a release and upload CSV files."
           exit 1
         fi
 
-        # Extract CSV URL safely
-        CSV_URL=$(echo "$RELEASE_DATA" | jq -r '.assets[]? | select(.name == "datafeed_2525445.csv") | .browser_download_url' 2>/dev/null || echo "")
+        # Extract all CSV URLs matching the pattern
+        CSV_URLS=$(echo "$RELEASE_DATA" | jq -r '.assets[]? | select(.name | test("datafeed_2525445.*\\.csv$")) | .browser_download_url' 2>/dev/null || echo "")
 
-        if [ -z "$CSV_URL" ] || [ "$CSV_URL" = "null" ]; then
-          echo "❌ CSV file 'datafeed_2525445.csv' not found in the latest release assets."
+        if [ -z "$CSV_URLS" ]; then
+          echo "❌ No CSV files matching 'datafeed_2525445*.csv' found in the latest release assets."
           echo "📋 Available assets in latest release:"
           echo "$RELEASE_DATA" | jq -r '.assets[]?.name // "No assets found"' 2>/dev/null || echo "  - Unable to list assets"
           echo ""
-          echo "📤 Please:"
-          echo "   1. Go to https://github.com/${{ github.repository }}/releases"
-          echo "   2. Create a new release or edit the latest release"
-          echo "   3. Upload datafeed_2525445.csv as a release asset"
-          echo "   4. Make sure the filename matches exactly: 'datafeed_2525445.csv'"
+          echo "📤 Please upload CSV files with names like:"
+          echo "   - datafeed_2525445-1 -by MaxAI.csv"
+          echo "   - datafeed_2525445-2 -by MaxAI.csv"
+          echo "   - etc."
           exit 1
         fi
 
-        echo "✅ Found CSV file: $CSV_URL"
-        echo "📥 Downloading CSV..."
-        wget -O datafeed_2525445.csv "$CSV_URL"
+        # Download all CSV files
+        CSV_FILES=""
+        echo "$CSV_URLS" | while read -r CSV_URL; do
+          if [ -n "$CSV_URL" ] && [ "$CSV_URL" != "null" ]; then
+            FILENAME=$(basename "$CSV_URL")
+            echo "📥 Downloading $FILENAME..."
+            wget -O "$FILENAME" "$CSV_URL"
 
-        # Verify download
-        if [ ! -f "datafeed_2525445.csv" ]; then
-          echo "❌ Failed to download CSV file"
-          exit 1
-        fi
+            # Verify download
+            if [ ! -f "$FILENAME" ]; then
+              echo "❌ Failed to download $FILENAME"
+              exit 1
+            fi
 
-        FILE_SIZE=$(stat -f%z datafeed_2525445.csv 2>/dev/null || stat -c%s datafeed_2525445.csv 2>/dev/null || echo "unknown")
-        echo "✅ CSV downloaded successfully. Size: $FILE_SIZE bytes"
+            FILE_SIZE=$(stat -f%z "$FILENAME" 2>/dev/null || stat -c%s "$FILENAME" 2>/dev/null || echo "unknown")
+            echo "✅ Downloaded $FILENAME (Size: $FILE_SIZE bytes)"
+
+            # Add to list of files to process
+            CSV_FILES="$CSV_FILES $FILENAME"
+          fi
+        done
+
+        # Store the list of CSV files for the next step
+        echo "CSV_FILES=$CSV_FILES" >> $GITHUB_ENV
+        echo "✅ All CSV files downloaded successfully"
 
     - name: Create .env file
       run: |
@@ -107,9 +119,19 @@ jobs:
       env:
         BATCH_SIZE: ${{ steps.params.outputs.batch_size }}
         MAX_PRODUCTS: ${{ steps.params.outputs.max_products }}
+        CSV_FILES: ${{ env.CSV_FILES }}
       run: |
         echo "Starting processing with batch_size=${{ steps.params.outputs.batch_size }}, max_products=${{ steps.params.outputs.max_products }}"
-        python process_awin_csv.py
+        echo "CSV files to process: $CSV_FILES"
+
+        # Process each CSV file
+        for csv_file in $CSV_FILES; do
+          echo "🔄 Processing $csv_file..."
+          CSV_FILE="$csv_file" python process_awin_csv.py
+          echo "✅ Completed processing $csv_file"
+        done
+
+        echo "🎉 All CSV files processed successfully"
 
     - name: Upload logs
       if: always()
@@ -117,7 +139,7 @@ jobs:
       with:
         name: processing-logs-${{ github.run_id }}
         path: |
-          awin_processor.log
+          awin_processor*.log
           *.log
         retention-days: 7
 
