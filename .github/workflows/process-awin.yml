@@ -92,12 +92,13 @@ jobs:
 
     - name: Upload logs
       if: always()
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: processing-logs-${{ github.run_id }}
         path: |
           awin_processor.log
           *.log
+        retention-days: 7
 
     - name: Notify completion
       if: always()
