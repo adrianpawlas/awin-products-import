@@ -36,12 +36,25 @@ SUPABASE_KEY=your_supabase_anon_key
 
 ### Local Usage
 
-1. Place your Awin CSV file (`datafeed_2525445.csv`) in the project root directory.
+1. Place your Awin CSV files in the project root directory:
+   - For single file: `datafeed_2525445.csv`
+   - For multiple split files: `datafeed_2525445-1 -by MaxAI.csv`, `datafeed_2525445-2 -by MaxAI.csv`, etc.
 
 2. Install dependencies and run:
 ```bash
 pip install -r requirements.txt
+
+# Process single file
 python process_awin_csv.py
+
+# Process specific file
+CSV_FILE="datafeed_2525445-1 -by MaxAI.csv" python process_awin_csv.py
+
+# Process multiple files (run script for each)
+for file in datafeed_2525445-* -by MaxAI.csv; do
+  echo "Processing $file..."
+  CSV_FILE="$file" python process_awin_csv.py
+done
 ```
 
 ### GitHub Actions Usage
@@ -61,10 +74,14 @@ The repository includes automated GitHub Actions workflows:
 
 #### Setup Instructions
 
-1. **Upload CSV file to GitHub Releases**:
+1. **Upload CSV files to GitHub Releases**:
    - Go to repository → Releases → Create new release
-   - Upload `datafeed_2525445.csv` as a release asset
-   - The workflow will automatically download the latest version
+   - Upload all your split CSV files as release assets, e.g.:
+     - `datafeed_2525445-1 -by MaxAI.csv`
+     - `datafeed_2525445-2 -by MaxAI.csv`
+     - `datafeed_2525445-3 -by MaxAI.csv`
+     - ...and so on
+   - The workflow will automatically download and process all files matching the pattern
 
 2. **Set up repository secrets**:
    - Go to Settings → Secrets and variables → Actions
